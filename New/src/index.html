@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ORG/3D — Employee Directory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --bg:#0a141d;
+    --bg-panel:#0f1e2b;
+    --bg-panel-alt:#132738;
+    --line:#20415a;
+    --line-soft:#1a324580;
+    --paper:#eaf3f6;
+    --muted:#7e9aab;
+    --muted-dim:#587284;
+    --cyan:#63c7d9;
+    --amber:#f2a65a;
+    --coral:#e8756a;
+    --sage:#8fcb9b;
+    --lavender:#b6a6e0;
+    --gold:#e8c468;
+    --danger:#e8756a;
+    --radius:10px;
+    --shadow:0 8px 30px -12px rgba(0,0,0,0.6);
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse 1200px 600px at 50% -10%, #12283880 0%, transparent 60%),
+      repeating-linear-gradient(0deg, var(--line-soft) 0 1px, transparent 1px 48px),
+      repeating-linear-gradient(90deg, var(--line-soft) 0 1px, transparent 1px 48px),
+      var(--bg);
+    color:var(--paper);
+    font-family:'Inter', sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+
+  ::selection{background:var(--cyan); color:#04141b;}
+
+  h1,h2,h3{font-family:'Space Grotesk', sans-serif; margin:0;}
+
+  button{font-family:inherit;}
+  :focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+
+  .mono{font-family:'JetBrains Mono', monospace;}
+
+  /* ---------- HEADER ---------- */
+  header.topbar{
+    position:sticky; top:0; z-index:40;
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px;
+    padding:16px 28px;
+    background:#0a141dee;
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+    flex-wrap:wrap;
+  }
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand-mark{
+    width:34px; height:34px; border-radius:8px;
+    background:linear-gradient(135deg, var(--cyan), var(--lavender));
+    display:flex; align-items:center; justify-content:center;
+    color:#04141b; font-weight:700; font-family:'Space Grotesk',sans-serif;
+    box-shadow:0 0 22px -4px var(--cyan);
+    flex-shrink:0;
+  }
+  .brand-text h1{font-size:1.05rem; letter-spacing:0.02em;}
+  .brand-text span{display:block; font-size:0.7rem; color:var(--muted); letter-spacing:0.12em; text-transform:uppercase; margin-top:2px;}
+
+  .readout{display:flex; gap:22px; flex-wrap:wrap;}
+  .readout div{text-align:right;}
+  .readout .val{font-family:'JetBrains Mono', monospace; font-size:1.1rem; font-weight:600; color:var(--cyan);}
+  .readout .lbl{font-size:0.65rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em;}
+
+  main{max-width:1240px; margin:0 auto; padding:0 24px 80px;}
+
+  /* ---------- HERO / 3D ---------- */
+  .hero{padding:28px 0 10px;}
+  .hero-head{display:flex; justify-content:space-between; align-items:flex-end; gap:12px; margin-bottom:14px; flex-wrap:wrap;}
+  .hero-head h2{font-size:1.5rem;}
+  .hero-head p{color:var(--muted); font-size:0.85rem; margin-top:6px; max-width:46ch;}
+  .hero-hint{
+    font-size:0.72rem; color:var(--muted-dim); text-transform:uppercase; letter-spacing:0.08em;
+    display:flex; align-items:center; gap:8px;
+    border:1px solid var(--line); padding:6px 12px; border-radius:100px;
+    flex-shrink:0;
+  }
+  .hero-hint .dot{width:6px;height:6px;border-radius:50%;background:var(--cyan); box-shadow:0 0 8px var(--cyan); animation:pulse 2.4s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:0.3;}}
+
+  .scene-frame{
+    position:relative;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    overflow:hidden;
+    background:radial-gradient(ellipse at 50% 30%, #0f2432 0%, #060d13 78%);
+    box-shadow:var(--shadow), inset 0 0 0 1px #ffffff08;
+    height:clamp(340px, 48vw, 540px);
+  }
+  .scene-frame canvas{display:block; width:100%; height:100%; cursor:grab;}
+  .scene-frame canvas:active{cursor:grabbing;}
+  .scene-corner{position:absolute; width:16px; height:16px; border:1.5px solid var(--muted-dim); opacity:0.6; pointer-events:none;}
+  .scene-corner.tl{top:10px; left:10px; border-right:none; border-bottom:none;}
+  .scene-corner.tr{top:10px; right:10px; border-left:none; border-bottom:none;}
+  .scene-corner.bl{bottom:10px; left:10px; border-right:none; border-top:none;}
+  .scene-corner.br{bottom:10px; right:10px; border-left:none; border-top:none;}
+
+  .legend{
+    position:absolute; left:14px; bottom:14px;
+    display:flex; flex-wrap:wrap; gap:8px;
+    max-width:calc(100% - 28px);
+  }
+  .legend-chip{
+    display:flex; align-items:center; gap:6px;
+    background:#081119cc; border:1px solid var(--line);
+    padding:5px 10px 5px 8px; border-radius:100px;
+    font-size:0.7rem; color:var(--muted); cursor:pointer;
+    transition:border-color .15s, color .15s;
+  }
+  .legend-chip:hover, .legend-chip.active{border-color:currentColor; color:var(--paper);}
+  .legend-chip .sw{width:8px; height:8px; border-radius:50%; flex-shrink:0; box-shadow:0 0 6px currentColor;}
+  .legend-chip .ct{font-family:'JetBrains Mono',monospace; opacity:0.7;}
+
+  .scene-tag{
+    position:absolute; top:14px; right:14px;
+    font-size:0.68rem; color:var(--muted-dim); text-transform:uppercase; letter-spacing:0.1em;
+    background:#081119cc; border:1px solid var(--line); padding:5px 10px; border-radius:100px;
+    pointer-events:none;
+  }
+
+  .node-tooltip{
+    position:absolute; pointer-events:none;
+    background:#081119f2; border:1px solid var(--line);
+    padding:7px 11px; border-radius:7px;
+    font-size:0.75rem; color:var(--paper);
+    transform:translate(-50%,-135%);
+    white-space:nowrap;
+    opacity:0; transition:opacity .12s;
+    z-index:6;
+    box-shadow:var(--shadow);
+  }
+  .node-tooltip.show{opacity:1;}
+  .node-tooltip .role{display:block; color:var(--muted); font-size:0.66rem; margin-top:2px;}
+
+  .scene-loading{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:var(--muted-dim); font-size:0.75rem; letter-spacing:0.08em; text-transform:uppercase;
+    transition:opacity .3s; font-family:'JetBrains Mono',monospace;
+  }
+
+  /* ---------- TOOLBAR ---------- */
+  .toolbar{
+    display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+    margin:34px 0 16px;
+  }
+  .field{position:relative; flex:1 1 220px; min-width:180px;}
+  .field input[type="text"], select{
+    width:100%;
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    color:var(--paper);
+    padding:10px 14px;
+    border-radius:8px;
+    font-size:0.88rem;
+    font-family:inherit;
+    transition:border-color .15s;
+  }
+  select{appearance:none; cursor:pointer; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237e9aab'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 14px center; padding-right:32px;}
+  .field input:focus, select:focus{border-color:var(--cyan);}
+  .field input::placeholder{color:var(--muted-dim);}
+  .filters{display:flex; gap:10px; flex-wrap:wrap;}
+  .filters select{flex:0 0 auto; min-width:150px;}
+
+  .btn{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:10px 18px;
+    border-radius:8px;
+    border:1px solid transparent;
+    font-size:0.85rem; font-weight:600;
+    cursor:pointer;
+    transition:transform .1s, filter .15s, background .15s;
+    white-space:nowrap;
+  }
+  .btn:active{transform:translateY(1px);}
+  .btn-primary{background:var(--amber); color:#241505;}
+  .btn-primary:hover{filter:brightness(1.08);}
+  .btn-ghost{background:transparent; border-color:var(--line); color:var(--paper);}
+  .btn-ghost:hover{border-color:var(--muted-dim);}
+  .btn-danger{background:transparent; border-color:var(--coral); color:var(--coral);}
+  .btn-danger:hover{background:var(--coral); color:#240807;}
+  .btn-icon{width:32px; height:32px; padding:0; justify-content:center; border-radius:7px;}
+
+  /* ---------- TABLE ---------- */
+  .table-wrap{
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    overflow:auto;
+    background:var(--bg-panel);
+    box-shadow:var(--shadow);
+  }
+  table{width:100%; border-collapse:collapse; min-width:860px;}
+  thead th{
+    text-align:left;
+    font-size:0.68rem; text-transform:uppercase; letter-spacing:0.08em;
+    color:var(--muted);
+    padding:14px 16px;
+    border-bottom:1px solid var(--line);
+    background:var(--bg-panel-alt);
+    position:sticky; top:0;
+    user-select:none;
+  }
+  th.sortable{cursor:pointer;}
+  th.sortable:hover{color:var(--paper);}
+  th.sortable .arrow{opacity:0; margin-left:4px;}
+  th.sortable.sorted .arrow{opacity:1; color:var(--cyan);}
+
+  tbody td{
+    padding:11px 16px;
+    border-bottom:1px solid var(--line-soft);
+    font-size:0.86rem;
+    vertical-align:middle;
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr{transition:background .5s;}
+  tbody tr:hover{background:#ffffff05;}
+  tbody tr.flash{background:#63c7d92e;}
+
+  .id-cell{color:var(--muted-dim);}
+
+  .row-person{display:flex; align-items:center; gap:11px;}
+  .avatar{
+    width:34px; height:34px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size:0.68rem; font-weight:700; font-family:'Space Grotesk',sans-serif;
+    border:1px solid; letter-spacing:0.02em;
+  }
+  .pname{display:block; font-weight:600;}
+  .role{display:block; font-weight:400; color:var(--muted); font-size:0.78rem; margin-top:1px;}
+
+  .dept-chip{display:inline-flex; align-items:center; gap:7px; font-size:0.82rem;}
+  .dept-chip .sw{width:9px; height:9px; border-radius:50%; flex-shrink:0; box-shadow:0 0 6px currentColor;}
+
+  .status-pill{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:3px 10px; border-radius:100px; font-size:0.72rem; font-weight:600;
+    border:1px solid currentColor;
+  }
+  .status-pill.active{color:var(--sage);}
+  .status-pill.leave{color:var(--amber);}
+  .status-pill::before{content:''; width:5px; height:5px; border-radius:50%; background:currentColor;}
+
+  .row-actions{display:flex; gap:6px;}
+
+  .empty-state{padding:60px 20px; text-align:center; color:var(--muted);}
+  .empty-state strong{display:block; color:var(--paper); font-size:1rem; margin-bottom:6px; font-family:'Space Grotesk',sans-serif;}
+
+  footer{max-width:1240px; margin:20px auto 0; padding:20px 24px; color:var(--muted-dim); font-size:0.75rem; border-top:1px solid var(--line-soft); text-align:center;}
+
+  /* ---------- MODAL ---------- */
+  .overlay{
+    position:fixed; inset:0; background:#040a0fcc; backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center; padding:20px;
+    z-index:100; opacity:0; pointer-events:none; transition:opacity .18s;
+  }
+  .overlay.open{opacity:1; pointer-events:auto;}
+  .modal{
+    background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius);
+    width:100%; max-width:460px; padding:26px; box-shadow:var(--shadow);
+    transform:translateY(8px) scale(.98); transition:transform .18s;
+    max-height:88vh; overflow-y:auto;
+  }
+  .overlay.open .modal{transform:translateY(0) scale(1);}
+  .modal-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;}
+  .modal-head h3{font-size:1.15rem;}
+  .modal-close{background:none; border:none; color:var(--muted); font-size:1.2rem; cursor:pointer; line-height:1; padding:4px;}
+  .modal-close:hover{color:var(--paper);}
+
+  .form-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .form-grid .full{grid-column:1 / -1;}
+  label{display:block; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:6px;}
+  input[type="text"], input[type="date"]{
+    width:100%; background:var(--bg-panel-alt); border:1px solid var(--line); color:var(--paper);
+    padding:9px 12px; border-radius:8px; font-size:0.88rem; font-family:inherit;
+  }
+  input[type="text"]:focus, input[type="date"]:focus{border-color:var(--cyan); outline:none;}
+  .err{color:var(--coral); font-size:0.72rem; margin-top:5px; display:none;}
+  .err.show{display:block;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:22px;}
+
+  @media (max-width:640px){
+    .form-grid{grid-template-columns:1fr;}
+    .readout{display:none;}
+    thead th:nth-child(1), tbody td:nth-child(1){display:none;}
+    thead th:nth-child(5), tbody td:nth-child(5){display:none;}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    html{scroll-behavior:auto;}
+    *{transition-duration:0.001ms !important; animation:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark">O3</div>
+    <div class="brand-text">
+      <h1>ORG/3D</h1>
+      <span>Employee Directory</span>
+    </div>
+  </div>
+  <div class="readout">
+    <div><div class="val" id="statTotal">0</div><div class="lbl">Headcount</div></div>
+    <div><div class="val" id="statActive">0</div><div class="lbl">Active</div></div>
+    <div><div class="val" id="statDept">0</div><div class="lbl">Departments</div></div>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero">
+    <div class="hero-head">
+      <div>
+        <h2>Org constellation</h2>
+        <p>Every hub is a department, every node is a person. Drag to rotate, hover a node to preview, click to jump to their record below.</p>
+      </div>
+      <div class="hero-hint"><span class="dot"></span> Drag to orbit &nbsp;·&nbsp; Click a node to locate</div>
+    </div>
+
+    <div class="scene-frame" id="sceneFrame">
+      <div class="scene-loading" id="sceneLoading">Initializing schematic…</div>
+      <span class="scene-tag mono">LIVE SCHEMATIC</span>
+      <span class="scene-corner tl"></span><span class="scene-corner tr"></span>
+      <span class="scene-corner bl"></span><span class="scene-corner br"></span>
+      <div class="legend" id="legend"></div>
+      <div class="node-tooltip" id="nodeTooltip"></div>
+    </div>
+  </section>
+
+  <section class="toolbar">
+    <div class="field">
+      <input type="text" id="searchInput" placeholder="Search by name, role or email…">
+    </div>
+    <div class="filters">
+      <select id="deptFilter"><option value="">All departments</option></select>
+      <select id="statusFilter">
+        <option value="">All statuses</option>
+        <option value="active">Active</option>
+        <option value="leave">On leave</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" id="addBtn">+ Add employee</button>
+  </section>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="mono">ID</th>
+          <th class="sortable" data-sort="name">Employee <span class="arrow">↓</span></th>
+          <th class="sortable" data-sort="department">Department <span class="arrow">↓</span></th>
+          <th class="sortable" data-sort="status">Status <span class="arrow">↓</span></th>
+          <th>Email</th>
+          <th class="sortable" data-sort="joined">Joined <span class="arrow">↓</span></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <strong>No matches on the board</strong>
+      Adjust your search or filters to find who you're looking for.
+    </div>
+  </div>
+
+</main>
+
+<footer>ORG/3D — a self-contained employee directory. Data lives in this browser tab only.</footer>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modalTitle">Add employee</h3>
+      <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
+    </div>
+    <form id="empForm" novalidate>
+      <div class="form-grid">
+        <div class="full">
+          <label for="fName">Full name</label>
+          <input type="text" id="fName">
+          <div class="err" id="errName">Enter a name.</div>
+        </div>
+        <div>
+          <label for="fRole">Role / title</label>
+          <input type="text" id="fRole">
+          <div class="err" id="errRole">Enter a role.</div>
+        </div>
+        <div>
+          <label for="fDept">Department</label>
+          <select id="fDept"></select>
+        </div>
+        <div>
+          <label for="fEmail">Email</label>
+          <input type="text" id="fEmail">
+          <div class="err" id="errEmail">Enter a valid email.</div>
+        </div>
+        <div>
+          <label for="fStatus">Status</label>
+          <select id="fStatus">
+            <option value="active">Active</option>
+            <option value="leave">On leave</option>
+          </select>
+        </div>
+        <div class="full">
+          <label for="fJoined">Join date</label>
+          <input type="date" id="fJoined">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="cancelBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="saveBtn">Save employee</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ====================== DATA ====================== */
+
+  var DEPARTMENTS = [
+    {key:"Engineering", color:"#63c7d9"},
+    {key:"Design",      color:"#b6a6e0"},
+    {key:"Sales",       color:"#f2a65a"},
+    {key:"Marketing",   color:"#e8756a"},
+    {key:"HR",          color:"#8fcb9b"},
+    {key:"Finance",     color:"#e8c468"}
+  ];
+  function deptColor(name){
+    for(var i=0;i<DEPARTMENTS.length;i++){ if(DEPARTMENTS[i].key===name) return DEPARTMENTS[i].color; }
+    return "#7e9aab";
+  }
+
+  var seed = [
+    ["Ava Whitfield","Senior Engineer","Engineering","active","2021-03-14"],
+    ["Marcus Lee","Frontend Engineer","Engineering","active","2022-06-01"],
+    ["Priya Nair","DevOps Engineer","Engineering","leave","2020-11-09"],
+    ["Yuki Tanaka","QA Engineer","Engineering","active","2023-01-23"],
+    ["Sofia Rossi","Product Designer","Design","active","2021-09-02"],
+    ["Daniel Kim","UX Researcher","Design","active","2022-02-17"],
+    ["Grace Okafor","Account Executive","Sales","active","2020-05-30"],
+    ["Tom Becker","Sales Manager","Sales","active","2019-08-11"],
+    ["Elena Petrova","Content Strategist","Marketing","leave","2022-10-04"],
+    ["Liam O'Connor","Growth Marketer","Marketing","active","2023-04-19"],
+    ["Hana Suzuki","HR Business Partner","HR","active","2018-12-01"],
+    ["Carlos Mendes","Recruiter","HR","active","2021-07-26"],
+    ["Nadia Hassan","Financial Analyst","Finance","active","2022-01-10"],
+    ["James Wright","Controller","Finance","leave","2019-03-22"]
+  ];
+
+  var employees = seed.map(function(row, i){
+    return {
+      id: "EMP-" + String(i+1).padStart(4,"0"),
+      name: row[0], role: row[1], department: row[2],
+      status: row[3], email: row[0].toLowerCase().replace(/[^a-z]+/g,".").replace(/^\.|\.$/g,"") + "@orbital.co",
+      joined: row[4]
+    };
+  });
+  var nextIdCounter = employees.length + 1;
+
+  var state = { search:"", dept:"", status:"", editingId:null, sortKey:"name", sortDir:1 };
+
+  /* ====================== DOM REFS ====================== */
+
+  var tableBody = document.getElementById("tableBody");
+  var emptyState = document.getElementById("emptyState");
+  var searchInput = document.getElementById("searchInput");
+  var deptFilter = document.getElementById("deptFilter");
+  var statusFilter = document.getElementById("statusFilter");
+  var legend = document.getElementById("legend");
+  var statTotal = document.getElementById("statTotal");
+  var statActive = document.getElementById("statActive");
+  var statDept = document.getElementById("statDept");
+  var sortHeaders = document.querySelectorAll("th.sortable");
+
+  var overlay = document.getElementById("overlay");
+  var modalTitle = document.getElementById("modalTitle");
+  var empForm = document.getElementById("empForm");
+  var fName = document.getElementById("fName");
+  var fRole = document.getElementById("fRole");
+  var fDept = document.getElementById("fDept");
+  var fEmail = document.getElementById("fEmail");
+  var fStatus = document.getElementById("fStatus");
+  var fJoined = document.getElementById("fJoined");
+
+  /* ====================== INIT SELECTS / LEGEND ====================== */
+
+  DEPARTMENTS.forEach(function(d){
+    var o1 = document.createElement("option"); o1.value = d.key; o1.textContent = d.key;
+    deptFilter.appendChild(o1);
+    var o2 = document.createElement("option"); o2.value = d.key; o2.textContent = d.key;
+    fDept.appendChild(o2);
+  });
+
+  function renderLegend(){
+    legend.innerHTML = "";
+    DEPARTMENTS.forEach(function(d){
+      var count = employees.filter(function(e){ return e.department === d.key; }).length;
+      var chip = document.createElement("div");
+      chip.className = "legend-chip" + (state.dept === d.key ? " active" : "");
+      chip.style.color = d.color;
+      chip.innerHTML = '<span class="sw" style="background:'+d.color+'"></span>' + d.key + ' <span class="ct">'+count+'</span>';
+      chip.addEventListener("click", function(){
+        state.dept = (state.dept === d.key) ? "" : d.key;
+        deptFilter.value = state.dept;
+        renderAll();
+      });
+      legend.appendChild(chip);
+    });
+  }
+
+  /* ====================== SORT ====================== */
+
+  sortHeaders.forEach(function(th){
+    th.addEventListener("click", function(){
+      var key = th.getAttribute("data-sort");
+      if(state.sortKey === key){ state.sortDir *= -1; } else { state.sortKey = key; state.sortDir = 1; }
+      updateSortIndicators();
+      renderTable();
+    });
+  });
+  function updateSortIndicators(){
+    sortHeaders.forEach(function(th){
+      var key = th.getAttribute("data-sort");
+      th.classList.toggle("sorted", key === state.sortKey);
+      var arrow = th.querySelector(".arrow");
+      arrow.textContent = (key === state.sortKey && state.sortDir === -1) ? "↑" : "↓";
+    });
+  }
+  updateSortIndicators();
+
+  /* ====================== RENDER TABLE ====================== */
+
+  function fmtDate(iso){
+    var d = new Date(iso + "T00:00:00");
+    if(isNaN(d)) return iso;
+    return d.toLocaleDateString(undefined, {year:"numeric", month:"short", day:"numeric"});
+  }
+  function initials(name){
+    return name.split(" ").filter(Boolean).map(function(p){return p[0];}).join("").slice(0,2).toUpperCase();
+  }
+
+  function getFiltered(){
+    var s = state.search.trim().toLowerCase();
+    var list = employees.filter(function(e){
+      if(state.dept && e.department !== state.dept) return false;
+      if(state.status && e.status !== state.status) return false;
+      if(s && (e.name.toLowerCase().indexOf(s) === -1 &&
+               e.role.toLowerCase().indexOf(s) === -1 &&
+               e.email.toLowerCase().indexOf(s) === -1)) return false;
+      return true;
+    });
+    var key = state.sortKey, dir = state.sortDir;
+    list.sort(function(a,b){
+      var va = a[key], vb = b[key];
+      if(va < vb) return -1 * dir;
+      if(va > vb) return 1 * dir;
+      return 0;
+    });
+    return list;
+  }
+
+  function renderTable(){
+    var list = getFiltered();
+    tableBody.innerHTML = "";
+    emptyState.style.display = list.length ? "none" : "block";
+
+    list.forEach(function(e){
+      var tr = document.createElement("tr");
+      tr.id = "row-" + e.id;
+      var color = deptColor(e.department);
+      tr.innerHTML =
+        '<td class="id-cell mono">'+e.id+'</td>' +
+        '<td><div class="row-person">' +
+          '<span class="avatar" style="background:'+color+'22;color:'+color+';border-color:'+color+'66">'+initials(e.name)+'</span>' +
+          '<span><span class="pname">'+escapeHtml(e.name)+'</span><span class="role">'+escapeHtml(e.role)+'</span></span>' +
+        '</div></td>' +
+        '<td><span class="dept-chip" style="color:'+color+'"><span class="sw" style="background:'+color+'"></span>'+e.department+'</span></td>' +
+        '<td><span class="status-pill '+e.status+'">'+(e.status==="active"?"Active":"On leave")+'</span></td>' +
+        '<td class="mono" style="color:var(--muted)">'+escapeHtml(e.email)+'</td>' +
+        '<td class="mono" style="color:var(--muted)">'+fmtDate(e.joined)+'</td>' +
+        '<td><div class="row-actions">' +
+          '<button class="btn btn-ghost btn-icon" data-action="edit" data-id="'+e.id+'" aria-label="Edit '+escapeHtml(e.name)+'" title="Edit">✎</button>' +
+          '<button class="btn btn-danger btn-icon" data-action="delete" data-id="'+e.id+'" aria-label="Delete '+escapeHtml(e.name)+'" title="Delete">🗑</button>' +
+        '</div></td>';
+      tableBody.appendChild(tr);
+    });
+  }
+
+  function escapeHtml(str){
+    var d = document.createElement("div");
+    d.textContent = str == null ? "" : str;
+    return d.innerHTML;
+  }
+
+  function renderStats(){
+    statTotal.textContent = employees.length;
+    statActive.textContent = employees.filter(function(e){return e.status==="active";}).length;
+    statDept.textContent = DEPARTMENTS.length;
+  }
+
+  function renderAll(){
+    renderTable();
+    renderLegend();
+    renderStats();
+    rebuildScene();
+  }
+
+  /* ====================== EVENTS: FILTERS ====================== */
+
+  searchInput.addEventListener("input", function(){ state.search = searchInput.value; renderTable(); });
+  deptFilter.addEventListener("change", function(){ state.dept = deptFilter.value; renderAll(); });
+  statusFilter.addEventListener("change", function(){ state.status = statusFilter.value; renderTable(); });
+
+  /* ====================== MODAL / FORM ====================== */
+
+  var addBtn = document.getElementById("addBtn");
+  var modalClose = document.getElementById("modalClose");
+  var cancelBtn = document.getElementById("cancelBtn");
+
+  function openModal(editing){
+    empForm.reset();
+    clearErrors();
+    if(editing){
+      modalTitle.textContent = "Edit employee";
+      state.editingId = editing.id;
+      fName.value = editing.name;
+      fRole.value = editing.role;
+      fDept.value = editing.department;
+      fEmail.value = editing.email;
+      fStatus.value = editing.status;
+      fJoined.value = editing.joined;
+    } else {
+      modalTitle.textContent = "Add employee";
+      state.editingId = null;
+      fDept.value = "Engineering";
+      fStatus.value = "active";
+      fJoined.value = new Date().toISOString().slice(0,10);
+    }
+    overlay.classList.add("open");
+    setTimeout(function(){ fName.focus(); }, 50);
+  }
+  function closeModal(){ overlay.classList.remove("open"); state.editingId = null; }
+
+  addBtn.addEventListener("click", function(){ openModal(null); });
+  modalClose.addEventListener("click", closeModal);
+  cancelBtn.addEventListener("click", closeModal);
+  overlay.addEventListener("click", function(ev){ if(ev.target === overlay) closeModal(); });
+  document.addEventListener("keydown", function(ev){ if(ev.key === "Escape" && overlay.classList.contains("open")) closeModal(); });
+
+  function clearErrors(){
+    ["errName","errRole","errEmail"].forEach(function(id){ document.getElementById(id).classList.remove("show"); });
+  }
+
+  function validEmail(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
+
+  empForm.addEventListener("submit", function(ev){
+    ev.preventDefault();
+    clearErrors();
+    var ok = true;
+    if(!fName.value.trim()){ document.getElementById("errName").classList.add("show"); ok = false; }
+    if(!fRole.value.trim()){ document.getElementById("errRole").classList.add("show"); ok = false; }
+    if(!validEmail(fEmail.value.trim())){ document.getElementById("errEmail").classList.add("show"); ok = false; }
+    if(!ok) return;
+
+    if(state.editingId){
+      var e = employees.find(function(x){ return x.id === state.editingId; });
+      e.name = fName.value.trim();
+      e.role = fRole.value.trim();
+      e.department = fDept.value;
+      e.email = fEmail.value.trim();
+      e.status = fStatus.value;
+      e.joined = fJoined.value;
+    } else {
+      var id = "EMP-" + String(nextIdCounter++).padStart(4,"0");
+      employees.push({
+        id:id, name:fName.value.trim(), role:fRole.value.trim(),
+        department:fDept.value, email:fEmail.value.trim(),
+        status:fStatus.value, joined:fJoined.value
+      });
+    }
+    closeModal();
+    renderAll();
+  });
+
+  tableBody.addEventListener("click", function(ev){
+    var btn = ev.target.closest("button[data-action]");
+    if(!btn) return;
+    var id = btn.getAttribute("data-id");
+    var emp = employees.find(function(x){ return x.id === id; });
+    if(!emp) return;
+    if(btn.getAttribute("data-action") === "edit"){
+      openModal(emp);
+    } else {
+      if(window.confirm('Remove ' + emp.name + ' from the directory?')){
+        employees = employees.filter(function(x){ return x.id !== id; });
+        renderAll();
+      }
+    }
+  });
+
+  /* ====================== 3D SCENE ====================== */
+
+  var sceneFrame = document.getElementById("sceneFrame");
+  var sceneLoading = document.getElementById("sceneLoading");
+  var tooltip = document.getElementById("nodeTooltip");
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  sceneFrame.insertBefore(renderer.domElement, sceneLoading);
+
+  var scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x081119, 15, 32);
+
+  var camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  camera.position.set(0, 6.2, 16.5);
+  camera.lookAt(0,0,0);
+
+  scene.add(new THREE.AmbientLight(0x8899aa, 0.65));
+  var dLight = new THREE.DirectionalLight(0xffffff, 0.85);
+  dLight.position.set(6, 10, 8);
+  scene.add(dLight);
+  var pLight = new THREE.PointLight(0x63c7d9, 1.2, 42);
+  pLight.position.set(0, 6, 6);
+  scene.add(pLight);
+
+  var group = new THREE.Group();
+  scene.add(group);
+
+  /* glow sprite texture, generated once */
+  function makeGlowTexture(){
+    var size = 128;
+    var c = document.createElement("canvas"); c.width = c.height = size;
+    var ctx = c.getContext("2d");
+    var g = ctx.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(0.35, "rgba(255,255,255,0.4)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = g; ctx.fillRect(0,0,size,size);
+    return new THREE.CanvasTexture(c);
+  }
+  var glowTexture = makeGlowTexture();
+  function addGlow(parent, position, colorInt, scale, opacity){
+    var mat = new THREE.SpriteMaterial({ map:glowTexture, color:colorInt, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, opacity:opacity });
+    var sprite = new THREE.Sprite(mat);
+    sprite.position.copy(position);
+    sprite.scale.set(scale, scale, 1);
+    parent.add(sprite);
+    return sprite;
+  }
+
+  /* static starfield backdrop (built once, not part of rotating group) */
+  (function addStarfield(){
+    var count = 260;
+    var positions = new Float32Array(count*3);
+    for(var i=0;i<count;i++){
+      var r = 15 + Math.random()*11;
+      var theta = Math.random()*Math.PI*2;
+      var phi = Math.acos((Math.random()*2)-1);
+      positions[i*3]   = r*Math.sin(phi)*Math.cos(theta);
+      positions[i*3+1] = r*Math.cos(phi)*0.55;
+      positions[i*3+2] = r*Math.sin(phi)*Math.sin(theta);
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    var mat = new THREE.PointsMaterial({ color:0x3a5b70, size:0.055, transparent:true, opacity:0.7, sizeAttenuation:true });
+    scene.add(new THREE.Points(geo, mat));
+  })();
+
+  /* faint ground ring */
+  var ringGeo = new THREE.RingGeometry(9.6, 9.72, 80);
+  var ringMat = new THREE.MeshBasicMaterial({ color:0x1f3a4d, side:THREE.DoubleSide, transparent:true, opacity:0.45 });
+  var ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = Math.PI/2;
+  group.add(ring);
+
+  var STATIC_COUNT = group.children.length; // things rebuildScene should never remove
+  var employeeHitMeshes = [];
+  var nodeById = {};
+  var shells = [];
+  var hoveredId = null;
+
+  function hexToInt(hex){ return parseInt(hex.replace("#",""), 16); }
+
+  function rebuildScene(){
+    for(var i=group.children.length-1; i>=STATIC_COUNT; i--){ group.remove(group.children[i]); }
+    employeeHitMeshes = [];
+    nodeById = {};
+    shells = [];
+    hoveredId = null;
+    tooltip.classList.remove("show");
+
+    var byDept = {};
+    DEPARTMENTS.forEach(function(d){ byDept[d.key] = []; });
+    employees.forEach(function(e){ if(byDept[e.department]) byDept[e.department].push(e); });
+
+    var hubRadius = 6.6;
+    var angleStep = (Math.PI * 2) / DEPARTMENTS.length;
+
+    DEPARTMENTS.forEach(function(d, di){
+      var angle = di * angleStep;
+      var hx = Math.cos(angle) * hubRadius;
+      var hz = Math.sin(angle) * hubRadius;
+      var colorInt = hexToInt(d.color);
+      var hubPos = new THREE.Vector3(hx, 0, hz);
+
+      addGlow(group, hubPos, colorInt, 3.2, 0.55);
+
+      var hub = new THREE.Mesh(
+        new THREE.SphereGeometry(0.4, 22, 22),
+        new THREE.MeshStandardMaterial({ color:colorInt, emissive:colorInt, emissiveIntensity:0.6, roughness:0.35, metalness:0.25 })
+      );
+      hub.position.copy(hubPos);
+      group.add(hub);
+
+      var shell = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(0.62, 1),
+        new THREE.MeshBasicMaterial({ color:colorInt, wireframe:true, transparent:true, opacity:0.4 })
+      );
+      shell.position.copy(hubPos);
+      group.add(shell);
+      shells.push(shell);
+
+      var members = byDept[d.key];
+      var orbitR = 2.15;
+      members.forEach(function(emp, mi){
+        var a = (mi / Math.max(members.length,1)) * Math.PI * 2;
+        var ex = hx + Math.cos(a) * orbitR;
+        var ez = hz + Math.sin(a) * orbitR;
+        var ey = ((mi % 2 === 0) ? 1 : -1) * (0.28 + (mi % 3) * 0.2);
+        var nodePos = new THREE.Vector3(ex, ey, ez);
+
+        var lineGeo = new THREE.BufferGeometry().setFromPoints([hubPos, nodePos]);
+        var line = new THREE.Line(lineGeo, new THREE.LineDashedMaterial({ color:colorInt, transparent:true, opacity:0.5, dashSize:0.16, gapSize:0.12 }));
+        line.computeLineDistances();
+        group.add(line);
+
+        var isActive = emp.status === "active";
+        if(isActive){ addGlow(group, nodePos, colorInt, 1.1, 0.7); }
+
+        var node = new THREE.Mesh(
+          new THREE.SphereGeometry(0.2, 16, 16),
+          new THREE.MeshStandardMaterial({
+            color: isActive ? colorInt : 0x445a68,
+            emissive: colorInt, emissiveIntensity: isActive ? 0.55 : 0.12,
+            roughness:0.4, metalness:0.15
+          })
+        );
+        node.position.copy(nodePos);
+        node.userData = { id: emp.id, baseScale: 1 };
+        group.add(node);
+        nodeById[emp.id] = node;
+
+        // larger invisible hitbox for easier pointer/touch targeting
+        var hit = new THREE.Mesh(
+          new THREE.SphereGeometry(0.42, 8, 8),
+          new THREE.MeshBasicMaterial({ visible:false })
+        );
+        hit.position.copy(nodePos);
+        hit.userData = { id: emp.id, name: emp.name, role: emp.role };
+        group.add(hit);
+        employeeHitMeshes.push(hit);
+      });
+    });
+  }
+
+  /* ---- resize ---- */
+  function resizeRenderer(){
+    var w = sceneFrame.clientWidth, h = sceneFrame.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / Math.max(h,1);
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener("resize", resizeRenderer);
+
+  /* ---- drag / hover / click ---- */
+  var isDragging = false, lastX = 0, lastY = 0, dragDistance = 0;
+  var canvas = renderer.domElement;
+  var raycaster = new THREE.Raycaster();
+  var mouse = new THREE.Vector2();
+
+  function setHover(id){
+    if(id === hoveredId) return;
+    if(hoveredId && nodeById[hoveredId]){ nodeById[hoveredId].scale.set(1,1,1); }
+    hoveredId = id;
+    if(id && nodeById[id]){ nodeById[id].scale.set(1.5,1.5,1.5); }
+    canvas.style.cursor = id ? "pointer" : "grab";
+  }
+
+  function updateTooltip(clientX, clientY, hitObj){
+    if(!hitObj){ tooltip.classList.remove("show"); return; }
+    var rect = sceneFrame.getBoundingClientRect();
+    tooltip.style.left = (clientX - rect.left) + "px";
+    tooltip.style.top = (clientY - rect.top) + "px";
+    tooltip.innerHTML = escapeHtml(hitObj.userData.name) + '<span class="role">'+escapeHtml(hitObj.userData.role)+'</span>';
+    tooltip.classList.add("show");
+  }
+
+  function raycastAt(clientX, clientY){
+    var rect = canvas.getBoundingClientRect();
+    mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    var hits = raycaster.intersectObjects(employeeHitMeshes);
+    return hits.length ? hits[0].object : null;
+  }
+
+  canvas.addEventListener("pointerdown", function(ev){
+    isDragging = true; lastX = ev.clientX; lastY = ev.clientY; dragDistance = 0;
+    canvas.setPointerCapture(ev.pointerId);
+    setHover(null); tooltip.classList.remove("show");
+  });
+
+  canvas.addEventListener("pointermove", function(ev){
+    if(isDragging){
+      var dx = ev.clientX - lastX, dy = ev.clientY - lastY;
+      dragDistance += Math.abs(dx) + Math.abs(dy);
+      group.rotation.y += dx * 0.006;
+      group.rotation.x = Math.max(-0.6, Math.min(0.6, group.rotation.x + dy * 0.006));
+      lastX = ev.clientX; lastY = ev.clientY;
+      return;
+    }
+    var hitObj = raycastAt(ev.clientX, ev.clientY);
+    setHover(hitObj ? hitObj.userData.id : null);
+    updateTooltip(ev.clientX, ev.clientY, hitObj);
+  });
+
+  window.addEventListener("pointerup", function(ev){
+    if(isDragging && dragDistance < 6){
+      var hitObj = raycastAt(ev.clientX, ev.clientY);
+      if(hitObj) focusRow(hitObj.userData.id);
+    }
+    isDragging = false;
+  });
+
+  canvas.addEventListener("pointerleave", function(){ if(!isDragging){ setHover(null); tooltip.classList.remove("show"); } });
+
+  function focusRow(id){
+    var row = document.getElementById("row-" + id);
+    if(!row){
+      state.search=""; state.dept=""; state.status="";
+      searchInput.value=""; deptFilter.value=""; statusFilter.value="";
+      renderAll();
+      row = document.getElementById("row-" + id);
+    }
+    if(row){
+      row.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block:"center" });
+      row.classList.add("flash");
+      setTimeout(function(){ row.classList.remove("flash"); }, 1300);
+    }
+  }
+
+  /* ---- animate ---- */
+  function animate(){
+    requestAnimationFrame(animate);
+    if(!isDragging && !reduceMotion){ group.rotation.y += 0.0015; }
+    if(!reduceMotion){ shells.forEach(function(s){ s.rotation.y += 0.006; s.rotation.x += 0.003; }); }
+    renderer.render(scene, camera);
+  }
+
+  /* ====================== BOOT ====================== */
+  resizeRenderer();
+  rebuildScene();
+  renderAll();
+  animate();
+  requestAnimationFrame(function(){
+    sceneLoading.style.opacity = "0";
+    setTimeout(function(){ sceneLoading.style.display = "none"; }, 320);
+  });
+
+})();
+</script>
+</body>
+</html>
